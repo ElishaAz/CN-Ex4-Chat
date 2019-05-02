@@ -12,28 +12,33 @@ import java.util.concurrent.Executors;
 import java.util.regex.Pattern;
 
 /**
+ * some code from https://cs.lmu.edu/~ray/notes/javanetexamples/
+ *
  * @author Elisha
  */
-public class ChatServer implements IMessage
+public class ChatServer implements Runnable
 {
+	public static final int port = 59101;
 
-	private static final String nameExistsMessage = "That source already exists. Try a different one",
-			nameInvalidMessage = "That source is invalid. Try a different one",
+	private static final String nameExistsMessage = "That name already exists. Try a different one",
+			nameInvalidMessage = "That name is invalid. Try a different one",
 			loginAcceptedMessage = "Login Accepted with source: ";
 
 	private static final String nameRegexPattern = "\\w";
+	/**
+	 * after conversion to lowercase, a name cannot be one of these
+	 */
+	private static final String[] savedNames = {"server", "everyone"};
 
 	private final Map<String, ObjectOutputStream> clients = new HashMap<>();
 
 	public final List<IMessage> allMessages = new LinkedList<>();
 
 	private final int numberOfThreads;
-	private final int port;
-	private final ServerListener listener;
+	private final ChatListener listener;
 
-	public ChatServer(int port, int numberOfThreads, ServerListener listener)
+	public ChatServer(ChatListener listener, int numberOfThreads)
 	{
-		this.port = port;
 		this.numberOfThreads = numberOfThreads;
 		this.listener = listener;
 	}
@@ -50,7 +55,7 @@ public class ChatServer implements IMessage
 		{
 			keepGoing = true;
 			System.out.println("Server is running...");
-			listener.stat("Server is running...",false);
+			listener.stat("Server is running...", false);
 
 			var pool = Executors.newFixedThreadPool(numberOfThreads);
 
@@ -79,12 +84,12 @@ public class ChatServer implements IMessage
 		keepGoing = false;
 
 		System.out.println("Server stopping ...");
-		listener.stat("Server stopping ...",false);
+		listener.stat("Server stopping ...", false);
 
 		closeAndClearClients();
 		allMessages.clear();
 		System.out.println("Server stopped");
-		listener.stat("Server stopped",false);
+		listener.stat("Server stopped", false);
 	}
 
 	/**
@@ -100,7 +105,7 @@ public class ChatServer implements IMessage
 			} catch (IOException e)
 			{
 				System.out.println("stream " + stream + " was already closed");
-				listener.stat("Stream " + stream + " was already closed",true);
+				listener.stat("Stream " + stream + " was already closed", true);
 			}
 		}
 		clients.clear();
@@ -175,12 +180,14 @@ public class ChatServer implements IMessage
 			} catch (IOException e)
 			{
 				System.out.println("IOException. Thread dropped. Name: " + (name == null ? "'null'" : name));
-				listener.stat("IOException. Thread dropped. Name: " + (name == null ? "'null'" : name),true);
+				listener.stat("IOException. Thread dropped. Name: " + (name == null ? "'null'" : name), true);
 				clientDisconnected(name);
 			} catch (ClassNotFoundException e)
 			{
-				System.out.println("Problem reading from stream. Thread dropped. Name: " + (name == null ? "'null'" : name));
-				listener.stat("Problem reading from stream. Thread dropped. Name: " + (name == null ? "'null'" : name),true);
+				System.out.println("Problem reading from stream. Thread dropped. Name: " + (name == null ? "'null'" :
+						name));
+				listener.stat("Problem reading from stream. Thread dropped. Name: " + (name == null ? "'null'" : name)
+						, true);
 				clientDisconnected(name);
 			} finally
 			{
@@ -241,7 +248,7 @@ public class ChatServer implements IMessage
 		} catch (IOException e)
 		{
 			System.out.println("Problem writing to new login: " + loginMessage.source + ". login is rejected.");
-			listener.stat("Problem writing to new login: " + loginMessage.source + ". login is rejected.",true);
+			listener.stat("Problem writing to new login: " + loginMessage.source + ". login is rejected.", true);
 			accepted = false;
 			clients.remove(loginMessage.source);
 		}
@@ -261,7 +268,14 @@ public class ChatServer implements IMessage
 	 */
 	private boolean isValidName(String name)
 	{
-		return Pattern.matches(nameRegexPattern, name) && !name.toLowerCase().equals("server");
+		if (!Pattern.matches(nameRegexPattern, name))
+			return false;
+		for (var str : savedNames)
+		{
+			if (name.equals(str))
+				return false;
+		}
+		return true;
 	}
 
 	/**
@@ -271,6 +285,16 @@ public class ChatServer implements IMessage
 	 */
 	private void messageReceived(ClientMessage message)
 	{
+		if (message.dest != null)
+		{
+			if (!clients.containsKey(message.dest))
+			{
+				System.out.println("Destination not found. Message dropped. " + message);
+				listener.stat("Destination not found. Message dropped. " + message, true);
+				return;
+			}
+		}
+
 		allMessages.add(message);
 		listener.messageReceived(message);
 		switch (message.getType())
@@ -328,7 +352,10 @@ public class ChatServer implements IMessage
 		{
 			try
 			{
-				clients.get(message.dest).writeObject(message);
+				var out = clients.get(message.dest);
+				out.writeObject(message);
+				out.flush();
+
 			} catch (IOException e)
 			{
 				System.out.println("problem sending the message + " + message + " to " + message.dest);

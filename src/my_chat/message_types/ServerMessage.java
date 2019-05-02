@@ -131,7 +131,14 @@ public class ServerMessage implements IMessage
 	 */
 	public static ServerMessage names(HashSet<String> names, String dest)
 	{
-		return new ServerMessage(Type.Names, null, dest, null, names, null, null);
+		StringBuilder sb = new StringBuilder("All connected clients: ");
+
+		for (var name : names)
+		{
+			sb.append(name);
+			sb.append(' ');
+		}
+		return new ServerMessage(Type.Names, null, dest, sb.toString(), names, null, null);
 	}
 
 	/**
@@ -158,12 +165,58 @@ public class ServerMessage implements IMessage
 	public String toString()
 	{
 		return "ServerMessage{" + "type: " + type +
-				(source == null? "Server" : ", from: '" + source + '\'') +
-				(dest == null? "Server" :", to: '" + dest + '\'') +
-				(message == null ? "" : ", message: '" + message +'\'') +
-				(names == null? "" : ", names: " + names) +
+				(source == null ? "Server" : ", from: '" + source + '\'') +
+				(dest == null ? "Server" : ", to: '" + dest + '\'') +
+				(message == null ? "" : ", message: '" + message + '\'') +
+				(names == null ? "" : ", names: " + names) +
 				(name == null ? "" : ", source: " + name) +
-				(loginAccepted == null? "" : ", loginAccepted=" + loginAccepted) +
+				(loginAccepted == null ? "" : ", loginAccepted=" + loginAccepted) +
 				'}';
+	}
+
+	@Override
+	public String stringDetail()
+	{
+		String from = source, to = dest, str = "";
+
+		if (source == null)
+		{
+			from = "Server";
+		}
+
+		if (dest == null)
+		{
+			to = "Everyone";
+		}
+
+		switch (type)
+		{
+			case Names:
+				StringBuilder sb = new StringBuilder("--All connected clients: ");
+
+				for (var name : names)
+				{
+					sb.append(name);
+				}
+				sb.append("--");
+				str = sb.toString();
+				break;
+			case LoginRequest:
+				return "Server: -- Trying to establish a connection --";
+			case LoginResponse:
+				if (loginAccepted)
+					str = "Login as " + name + " was accepted";
+				else
+					str = "Login failed. " + message;
+				break;
+			case ClientLeft:
+				return name + " has left";
+			case ClientJoined:
+				return name + " has joined";
+			default:
+				str = message;
+		}
+
+		return from + " to " + to + ": " + str;
 	}
 }

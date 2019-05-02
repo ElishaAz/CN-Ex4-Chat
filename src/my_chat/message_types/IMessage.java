@@ -5,5 +5,5 @@ package my_chat.message_types;
  */
 public interface IMessage
 {
-
+	String stringDetail();
 }

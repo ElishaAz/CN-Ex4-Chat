@@ -9,4 +9,8 @@ import java.util.EventListener;
  */
 public interface ChatListener extends EventListener
 {
+	void messageReceived (IMessage message);
+	void messageSent(IMessage message);
+
+	void stat(String message, boolean err);
 }
