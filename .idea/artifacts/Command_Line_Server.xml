@@ -1,0 +1,11 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="Command-Line Server">
+    <output-path>$PROJECT_DIR$/out/artifacts/Command_Line_Server</output-path>
+    <root id="archive" name="Command-Line_Server.jar">
+      <element id="module-output" name="Ex4-Chat" />
+      <element id="directory" name="META-INF">
+        <element id="file-copy" path="$PROJECT_DIR$/src/META-INF/Command-Line/Server/META-INF/MANIFEST.MF" />
+      </element>
+    </root>
+  </artifact>
+</component>
