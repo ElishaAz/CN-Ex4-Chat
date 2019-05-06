@@ -7,6 +7,6 @@ public class ClientJoinedMessage extends BroadcastMessage
 {
 	public ClientJoinedMessage(String name)
 	{
-		super("<" + name + " has logged in>");
+		super(name + " has logged in");
 	}
 }

@@ -7,6 +7,6 @@ public class ClientLeftMessage extends BroadcastMessage
 {
 	public ClientLeftMessage(String name)
 	{
-		super("<" + name + "has left>");
+		super(name + "has left");
 	}
 }
