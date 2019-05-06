@@ -17,8 +17,8 @@ public class ChatClient implements Runnable
 {
 	private String serverAddress;
 	@SuppressWarnings("FieldCanBeLocal")
-	private MessageInput in;
-	private MessageOutput out;
+	private ObjectInputStream in;
+	private ObjectOutputStream out;
 
 	private String name = "";
 
@@ -75,24 +75,27 @@ public class ChatClient implements Runnable
 	{
 		synchronized (clientRunningLock)
 		{
-			this.serverAddress = serverAddress;
+			listener.stat("Client starting ...", false);
+
 			try
 			{
 				var socket = new Socket(serverAddress, ChatServer.port);
-				in = new MessageInput(new BufferedInputStream(socket.getInputStream()));
-				out = new MessageOutput(new BufferedOutputStream(socket.getOutputStream()));
+				in = new ObjectInputStream(socket.getInputStream());
+				out = new ObjectOutputStream(socket.getOutputStream());
 
 				running = true;
+
+				listener.stat("Client started", false);
 
 				// log in
 				while (!loggedIn)
 				{
-					if (in.available())
+					if (in.available() > 0)
 					{
-						IMessage m = in.readMessage();
-						if (m instanceof IServerMessage)
+						Object obj = in.readObject();
+						if (obj instanceof IServerMessage)
 						{
-							IServerMessage sm = (IServerMessage) m;
+							IServerMessage sm = (IServerMessage) obj;
 							messageReceived(sm);
 
 							if (sm instanceof LoginResponseMessage)
@@ -121,9 +124,9 @@ public class ChatClient implements Runnable
 				// send / receive messages
 				while (running)
 				{
-					if (in.available())
+					if (in.available() > 0)
 					{
-						Object obj = in.readMessage();
+						Object obj = in.readObject();
 						if (obj instanceof IServerMessage)
 						{
 							IServerMessage sm = (IServerMessage) obj;
@@ -153,6 +156,7 @@ public class ChatClient implements Runnable
 	 */
 	public synchronized void stop()
 	{
+		listener.stat("Stopping ...", false);
 		if (loggedIn)
 		{
 			sendMessage(new LoginMessage(name, false));
@@ -168,6 +172,7 @@ public class ChatClient implements Runnable
 				e.printStackTrace();
 			}
 		running = false;
+		listener.stat("Client stopped", false);
 	}
 
 	/**
@@ -219,7 +224,7 @@ public class ChatClient implements Runnable
 		}
 		try
 		{
-			out.writeMessage(message);
+			out.writeObject(message);
 			out.flush();
 			listener.messageSent(message);
 		} catch (IOException e)

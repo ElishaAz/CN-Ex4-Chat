@@ -27,7 +27,7 @@ public class ChatServer implements Runnable
 
 	public static final String nameRegexPattern = "\\w";
 
-	private final Map<String, MessageOutput> clients = new HashMap<>();
+	private final Map<String, ObjectOutputStream> clients = new HashMap<>();
 
 	public final List<IMessage> allMessages = new LinkedList<>();
 
@@ -152,8 +152,8 @@ public class ChatServer implements Runnable
 	{
 		private String name;
 		private Socket socket;
-		private MessageInput in;
-		private MessageOutput out;
+		private ObjectInputStream in;
+		private ObjectOutputStream out;
 
 		Handler(Socket socket)
 		{
@@ -165,20 +165,19 @@ public class ChatServer implements Runnable
 		{
 			try
 			{
-				in = new MessageInput(new BufferedInputStream(socket.getInputStream()));
-				out = new MessageOutput(new BufferedOutputStream(socket.getOutputStream()));
-
+				in = new ObjectInputStream(socket.getInputStream());
+				out = new ObjectOutputStream(socket.getOutputStream());
 
 				// get login info
 				boolean loginAccepted = false;
 				while (!loginAccepted)
 				{
-					if (in.available())
+					if (in.available() > 0)
 					{
-						IMessage m = in.readMessage();
-						if (m instanceof IClientMessage)
+						Object obj = in.readObject();
+						if (obj instanceof IClientMessage)
 						{
-							IClientMessage message = (IClientMessage) m;
+							IClientMessage message = (IClientMessage) obj;
 							if (message instanceof LoginMessage)
 							{
 								loginAccepted = clientConnected(message, out);
@@ -194,7 +193,7 @@ public class ChatServer implements Runnable
 						}
 					} else
 					{
-						out.writeMessage(new LoginRequestMessage());
+						out.writeObject(new LoginRequestMessage());
 						out.flush();
 					}
 				}
@@ -203,9 +202,9 @@ public class ChatServer implements Runnable
 				boolean logout = false;
 				while (!logout)
 				{
-					if (in.available())
+					if (in.available() > 0)
 					{
-						Object obj = in.readMessage();
+						Object obj = in.readObject();
 						if (obj instanceof IClientMessage)
 						{
 							IClientMessage message = (IClientMessage) obj;
@@ -260,7 +259,7 @@ public class ChatServer implements Runnable
 	 * @param out          the output stream to the client.
 	 * @return true if the login is valid and false otherwise.
 	 */
-	private synchronized boolean clientConnected(IClientMessage loginMessage, MessageOutput out)
+	private synchronized boolean clientConnected(IClientMessage loginMessage, ObjectOutputStream out)
 	{
 		messageReceived(loginMessage);
 
@@ -290,7 +289,7 @@ public class ChatServer implements Runnable
 
 		try
 		{
-			out.writeMessage(new LoginResponseMessage(accepted, nameExists, loginMessage.getSource()));
+			out.writeObject(new LoginResponseMessage(accepted, nameExists, loginMessage.getSource()));
 		} catch (IOException e)
 		{
 			listener.stat("Problem writing to new login: " + loginMessage.getSource() + ". login is rejected.", true);
@@ -389,7 +388,7 @@ public class ChatServer implements Runnable
 			try
 			{
 				var out = clients.get(message.getDest());
-				out.writeMessage(message);
+				out.writeObject(message);
 				out.flush();
 
 			} catch (IOException e)

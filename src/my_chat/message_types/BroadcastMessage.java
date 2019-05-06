@@ -15,7 +15,7 @@ public class BroadcastMessage implements IMessage
 	@Override
 	public String toString()
 	{
-		return "<" + message + ">";
+		return message;
 	}
 
 	@Override
