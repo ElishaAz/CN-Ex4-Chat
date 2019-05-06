@@ -1,8 +1,9 @@
 package my_chat.serverside;
 
-import my_chat.message_types.ClientMessage;
-import my_chat.message_types.IMessage;
-import my_chat.message_types.ServerMessage;
+import my_chat.data_transfer.ChatListener;
+import my_chat.data_transfer.MessageInput;
+import my_chat.data_transfer.MessageOutput;
+import my_chat.message_types.*;
 
 import java.io.*;
 import java.net.ServerSocket;
@@ -24,44 +25,55 @@ public class ChatServer implements Runnable
 			nameInvalidMessage = "That name is invalid. Try a different one",
 			loginAcceptedMessage = "Login Accepted with source: ";
 
-	private static final String nameRegexPattern = "\\w";
-	/**
-	 * after conversion to lowercase, a name cannot be one of these
-	 */
-	private static final String[] savedNames = {"server", "everyone"};
+	public static final String nameRegexPattern = "\\w";
 
-	private final Map<String, ObjectOutputStream> clients = new HashMap<>();
+	private final Map<String, MessageOutput> clients = new HashMap<>();
 
 	public final List<IMessage> allMessages = new LinkedList<>();
 
 	private final int numberOfThreads;
 	private final ChatListener listener;
 
+	/**
+	 * Construct a server.
+	 *
+	 * @param listener        a listener that is called when messages are sent / received
+	 * @param numberOfThreads the maximum number of online clients this server can hold.
+	 */
 	public ChatServer(ChatListener listener, int numberOfThreads)
 	{
 		this.numberOfThreads = numberOfThreads;
 		this.listener = listener;
 	}
 
-	private boolean keepGoing = true;
+	private boolean runnning = true;
 	private final Object serverRunningLock = new Object();
 
 	/**
-	 * Start the server.
+	 * Start the Server.
+	 * You should run this from a separate thread.
+	 * Because this class implements Runnable, you can run:
+	 * <pre>
+	 * {@code
+	 * Thread thread = new Thread(server);
+	 * thread.run();
+	 * }
+	 * </pre>
+	 * where 'server' is an instance of this class.
 	 */
+	@Override
 	public void run()
 	{
 		synchronized (serverRunningLock)
 		{
-			keepGoing = true;
-			System.out.println("Server is running...");
+			runnning = true;
 			listener.stat("Server is running...", false);
 
 			var pool = Executors.newFixedThreadPool(numberOfThreads);
 
 			try (var listener = new ServerSocket(port))
 			{
-				while (keepGoing)
+				while (runnning)
 				{
 					pool.execute(new Handler(listener.accept()));
 				}
@@ -81,15 +93,21 @@ public class ChatServer implements Runnable
 	 */
 	public synchronized void stop()
 	{
-		keepGoing = false;
+		runnning = false;
 
-		System.out.println("Server stopping ...");
 		listener.stat("Server stopping ...", false);
 
 		closeAndClearClients();
 		allMessages.clear();
-		System.out.println("Server stopped");
 		listener.stat("Server stopped", false);
+	}
+
+	/**
+	 * @return true if the server is running.
+	 */
+	public boolean isRunning()
+	{
+		return runnning;
 	}
 
 	/**
@@ -104,7 +122,6 @@ public class ChatServer implements Runnable
 				stream.close();
 			} catch (IOException e)
 			{
-				System.out.println("stream " + stream + " was already closed");
 				listener.stat("Stream " + stream + " was already closed", true);
 			}
 		}
@@ -118,10 +135,8 @@ public class ChatServer implements Runnable
 	{
 		private String name;
 		private Socket socket;
-		private ObjectInputStream in;
-		private ObjectOutputStream out;
-
-		private boolean keepGoing;
+		private MessageInput in;
+		private MessageOutput out;
 
 		Handler(Socket socket)
 		{
@@ -133,29 +148,36 @@ public class ChatServer implements Runnable
 		{
 			try
 			{
-				in = new ObjectInputStream(new BufferedInputStream(socket.getInputStream()));
-				out = new ObjectOutputStream(new BufferedOutputStream(socket.getOutputStream()));
+				in = new MessageInput(new BufferedInputStream(socket.getInputStream()));
+				out = new MessageOutput(new BufferedOutputStream(socket.getOutputStream()));
 
 
 				// get login info
 				boolean loginAccepted = false;
 				while (!loginAccepted)
 				{
-					if (in.available() > 0)
+					if (in.available())
 					{
-						ClientMessage message = (ClientMessage) in.readObject();
-						if (message.getType() == ClientMessage.Type.Login)
+						IMessage m = in.readMessage();
+						if (m instanceof IClientMessage)
 						{
-							loginAccepted = clientConnected(message, out);
-
-							if (loginAccepted)
+							IClientMessage message = (IClientMessage) m;
+							if (message instanceof LoginMessage)
 							{
-								name = message.source;
+								loginAccepted = clientConnected(message, out);
+
+								if (loginAccepted)
+								{
+									name = message.getSource();
+								}
 							}
+						} else
+						{
+							listener.stat("A non-client message was received. Message dropped.", true);
 						}
 					} else
 					{
-						out.writeObject(ServerMessage.loginRequest());
+						out.writeMessage(new LoginRequestMessage());
 						out.flush();
 					}
 				}
@@ -164,28 +186,32 @@ public class ChatServer implements Runnable
 				boolean logout = false;
 				while (!logout)
 				{
-					if (in.available() > 0)
+					if (in.available())
 					{
-						ClientMessage message = (ClientMessage) in.readObject();
-						if (message.getType() == ClientMessage.Type.Logout)
+						Object obj = in.readMessage();
+						if (obj instanceof IClientMessage)
 						{
-							logout = clientLogout(message);
+							IClientMessage message = (IClientMessage) obj;
+							if (message instanceof LoginMessage)
+							{
+								logout = clientLogout(message);
+							} else
+							{
+								messageReceived(message);
+							}
 						} else
 						{
-							messageReceived(message);
+							listener.stat("A non-client message was received. Message dropped.", true);
 						}
 					}
 				}
 
 			} catch (IOException e)
 			{
-				System.out.println("IOException. Thread dropped. Name: " + (name == null ? "'null'" : name));
 				listener.stat("IOException. Thread dropped. Name: " + (name == null ? "'null'" : name), true);
 				clientDisconnected(name);
 			} catch (ClassNotFoundException e)
 			{
-				System.out.println("Problem reading from stream. Thread dropped. Name: " + (name == null ? "'null'" :
-						name));
 				listener.stat("Problem reading from stream. Thread dropped. Name: " + (name == null ? "'null'" : name)
 						, true);
 				clientDisconnected(name);
@@ -217,65 +243,60 @@ public class ChatServer implements Runnable
 	 * @param out          the output stream to the client.
 	 * @return true if the login is valid and false otherwise.
 	 */
-	private synchronized boolean clientConnected(ClientMessage loginMessage, ObjectOutputStream out)
+	private synchronized boolean clientConnected(IClientMessage loginMessage, MessageOutput out)
 	{
 		messageReceived(loginMessage);
 
-		boolean accepted;
+		boolean accepted, nameExists;
 		String message;
 
-		if (loginMessage.source == null || clients.containsKey(loginMessage.source))
+		if (loginMessage.getSource() == null || clients.containsKey(loginMessage.getSource()))
 		{
 			message = nameExistsMessage;
 			accepted = false;
+			nameExists = true;
 		} else
 		{
-			if (isValidName(loginMessage.source))
+			if (isValidName(loginMessage.getSource()))
 			{
-				clients.put(loginMessage.source, out);
-				message = loginAcceptedMessage + loginMessage.source;
+				clients.put(loginMessage.getSource(), out);
+				message = loginAcceptedMessage + loginMessage.getSource();
 				accepted = true;
+				nameExists = false;
 			} else
 			{
 				message = nameInvalidMessage;
 				accepted = false;
+				nameExists = false;
 			}
 		}
 
 		try
 		{
-			out.writeObject(ServerMessage.loginResponse(accepted, message, loginMessage.source));
+			out.writeMessage(new LoginResponseMessage(accepted, nameExists, loginMessage.getSource()));
 		} catch (IOException e)
 		{
-			System.out.println("Problem writing to new login: " + loginMessage.source + ". login is rejected.");
-			listener.stat("Problem writing to new login: " + loginMessage.source + ". login is rejected.", true);
+			listener.stat("Problem writing to new login: " + loginMessage.getSource() + ". login is rejected.", true);
 			accepted = false;
-			clients.remove(loginMessage.source);
+			clients.remove(loginMessage.getSource());
 		}
 
 		if (accepted)
 		{
-			sendMessage(ServerMessage.clientJoined(loginMessage.source));
+			sendMessage(new ClientJoinedMessage(loginMessage.getSource()));
 		}
 
 		return accepted;
 	}
 
 	/**
-	 * Checks if the source the client gave is valid.
+	 * Checks if the name the client gave is valid.
 	 *
-	 * @param name the source the client gave.
+	 * @param name the name the client gave.
 	 */
 	private boolean isValidName(String name)
 	{
-		if (!Pattern.matches(nameRegexPattern, name))
-			return false;
-		for (var str : savedNames)
-		{
-			if (name.equals(str))
-				return false;
-		}
-		return true;
+		return Pattern.matches(nameRegexPattern, name);
 	}
 
 	/**
@@ -283,28 +304,26 @@ public class ChatServer implements Runnable
 	 *
 	 * @param message the incoming message.
 	 */
-	private void messageReceived(ClientMessage message)
+	private void messageReceived(IClientMessage message)
 	{
-		if (message.dest != null)
+		if (message.getDest() != null)
 		{
-			if (!clients.containsKey(message.dest))
+			if (!clients.containsKey(message.getDest()))
 			{
-				System.out.println("Destination not found. Message dropped. " + message);
-				listener.stat("Destination not found. Message dropped. " + message, true);
+				sendMessage(new InvalidUserMessage(message.getSource(), message.getDest()));
 				return;
 			}
 		}
 
 		allMessages.add(message);
 		listener.messageReceived(message);
-		switch (message.getType())
+
+		if (message instanceof NameRequestMessage)
 		{
-			case Message:
-				sendMessage(ServerMessage.message(message.source, message.dest, message.message));
-				break;
-			case ListNames:
-				sendMessage(ServerMessage.names(new HashSet<>(clients.keySet()), message.source));
-				break;
+			sendMessage(new NameListMessage(message.getSource(), new HashSet<>(clients.keySet())));
+		} else if (message instanceof IServerMessage)
+		{
+			sendMessage(message);
 		}
 	}
 
@@ -314,14 +333,14 @@ public class ChatServer implements Runnable
 	 * @param message the message to send.
 	 * @return true if the message was sent, and false otherwise (i.e. if there was an error).
 	 */
-	private synchronized boolean sendMessage(ServerMessage message)
+	private synchronized boolean sendMessage(IMessage message)
 	{
 		boolean sent = true;
 
 		allMessages.add(message);
 		listener.messageSent(message);
 
-		if (message.dest == null)
+		if (message.getDest() == null)
 		{
 			for (var name : clients.keySet())
 			{
@@ -332,7 +351,7 @@ public class ChatServer implements Runnable
 			}
 		} else
 		{
-			sent = sendMessageTo(message, message.dest);
+			sent = sendMessageTo(message, message.getDest());
 
 		}
 
@@ -346,20 +365,19 @@ public class ChatServer implements Runnable
 	 * @param dest    the source of the destination client.
 	 * @return true if the message was sent, and false otherwise (i.e. if there was an error).
 	 */
-	private boolean sendMessageTo(ServerMessage message, String dest)
+	private boolean sendMessageTo(IMessage message, String dest)
 	{
 		if (dest != null && clients.containsKey(dest))
 		{
 			try
 			{
-				var out = clients.get(message.dest);
-				out.writeObject(message);
+				var out = clients.get(message.getDest());
+				out.writeMessage(message);
 				out.flush();
 
 			} catch (IOException e)
 			{
-				System.out.println("problem sending the message + " + message + " to " + message.dest);
-				listener.stat("problem sending the message + " + message + " to " + message.dest, true);
+				listener.stat("problem sending the message + " + message + " to " + message.getDest(), true);
 				return false;
 			}
 			return true;
@@ -373,10 +391,10 @@ public class ChatServer implements Runnable
 	 * @param logoutMessage The client's message asking to log out.
 	 * @return false iff there was an error and the clietn was not disconnected.
 	 */
-	private synchronized boolean clientLogout(ClientMessage logoutMessage)
+	private synchronized boolean clientLogout(IClientMessage logoutMessage)
 	{
 		messageReceived(logoutMessage);
-		return clientDisconnected(logoutMessage.source);
+		return clientDisconnected(logoutMessage.getSource());
 	}
 
 	/**
@@ -388,7 +406,7 @@ public class ChatServer implements Runnable
 	private synchronized boolean clientDisconnected(String name)
 	{
 		clients.remove(name);
-		sendMessage(ServerMessage.clientLeft(name));
+		sendMessage(new ClientLeftMessage(name));
 		return true;
 	}
 }

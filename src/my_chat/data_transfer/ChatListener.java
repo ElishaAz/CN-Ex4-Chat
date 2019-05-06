@@ -1,4 +1,4 @@
-package my_chat.serverside;
+package my_chat.data_transfer;
 
 import my_chat.message_types.IMessage;
 
@@ -11,6 +11,5 @@ public interface ChatListener extends EventListener
 {
 	void messageReceived (IMessage message);
 	void messageSent(IMessage message);
-
 	void stat(String message, boolean err);
 }
