@@ -110,6 +110,23 @@ public class ChatServer implements Runnable
 		return runnning;
 	}
 
+
+	/**
+	 * Send a message from the server to all the clients.
+	 *
+	 * @param message the message to send.
+	 */
+	public void broadcast(String message)
+	{
+		if (!runnning)
+		{
+			listener.stat("Server has not started yet!", true);
+		} else
+		{
+			sendMessage(new BroadcastMessage(message));
+		}
+	}
+
 	/**
 	 * Closes all the streams in 'clients' and the clears it.
 	 */
