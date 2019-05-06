@@ -16,7 +16,7 @@ public class CommandLineServer implements ChatListener
 		ChatServer server = new ChatServer(new CommandLineServer(), 100);
 
 		Thread thread = new Thread(server);
-		thread.run();
+		thread.start();
 
 		Scanner scanner = new Scanner(System.in);
 

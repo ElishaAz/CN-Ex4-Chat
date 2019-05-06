@@ -56,7 +56,7 @@ public class ChatServer implements Runnable
 	 * <pre>
 	 * {@code
 	 * Thread thread = new Thread(server);
-	 * thread.run();
+	 * thread.start();
 	 * }
 	 * </pre>
 	 * where 'server' is an instance of this class.
@@ -167,6 +167,13 @@ public class ChatServer implements Runnable
 			{
 				out = new ObjectOutputStream(socket.getOutputStream());
 				in = new ObjectInputStream(socket.getInputStream());
+
+				IMessage loginRequestMessage = new LoginRequestMessage();
+
+				out.writeObject(loginRequestMessage);
+				out.flush();
+
+				listener.messageSent(loginRequestMessage);
 
 				// get login info
 				boolean loginAccepted = false;

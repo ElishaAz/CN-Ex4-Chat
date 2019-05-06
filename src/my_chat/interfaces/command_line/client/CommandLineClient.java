@@ -34,15 +34,22 @@ public class CommandLineClient implements ChatListener
 			System.err.println("The first argument must be an IP address (IPv4 or 'localhost').");
 			return;
 		}
+
 		ChatClient client = new ChatClient(new CommandLineClient(), args[0]);
 
 		Thread thread = new Thread(client);
-		thread.run();
+		thread.start();
+
+		if (!client.isRunning())
+			return;
 
 		Scanner scanner = new Scanner(System.in);
 		System.out.println("System: Enter name:");
 		while (!hasName)
 		{
+			if (!client.isRunning())
+				return;
+
 			String input = scanner.nextLine().trim();
 			if (client.isValidName(input))
 			{

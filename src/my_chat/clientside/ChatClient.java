@@ -65,7 +65,7 @@ public class ChatClient implements Runnable
 	 * <pre>
 	 * {@code
 	 * Thread thread = new Thread(client);
-	 * thread.run();
+	 * thread.start();
 	 * }
 	 * </pre>
 	 * where 'client' is an instance of this class.
@@ -108,16 +108,17 @@ public class ChatClient implements Runnable
 								}
 							}
 
-							if (nameUpdated && name != null && !name.trim().equals("")) // if the name was updated,
-							// try sighing in again
-							{
-								sendMessage(new LoginMessage(name, true));
-								nameUpdated = false;
-							}
+
 						} else
 						{
 							listener.stat("A non-server message was received. Message dropped.", true);
 						}
+					}
+					if (nameUpdated && name != null && !name.trim().equals("")) // if the name was updated,
+					// try sighing in again
+					{
+						sendMessage(new LoginMessage(name, true));
+						nameUpdated = false;
 					}
 				}
 
