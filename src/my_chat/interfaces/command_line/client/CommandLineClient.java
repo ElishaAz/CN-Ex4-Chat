@@ -39,26 +39,25 @@ public class CommandLineClient implements ChatListener
 
 		Thread thread = new Thread(client);
 		thread.start();
-
-		if (!client.isRunning())
-			return;
+		client.updateName("Name");
 
 		Scanner scanner = new Scanner(System.in);
-		System.out.println("System: Enter name:");
-		while (!hasName)
-		{
-			if (!client.isRunning())
-				return;
-
-			String input = scanner.nextLine().trim();
-			if (client.isValidName(input))
-			{
-				client.updateName(input);
-			} else
-			{
-				System.out.println("System: Enter name:");
-			}
-		}
+//		System.out.println("System: Enter name:");
+//		while (!hasName)
+//		{
+//			if (!thread.isAlive())
+//				return;
+//
+//			String input = scanner.nextLine().trim();
+//			if (client.isValidName(input))
+//			{
+//				System.out.println("System: Name '" + input + "' is valid");
+//				client.updateName(input);
+//			} else
+//			{
+//				System.out.println("System: Enter name:");
+//			}
+//		}
 
 		while (client.isRunning())
 		{
@@ -66,13 +65,13 @@ public class CommandLineClient implements ChatListener
 			if (input.toLowerCase().startsWith("message all"))
 			{
 				int i = input.indexOf(':');
-				String message = input.substring(i);
+				String message = input.substring(i + 1).trim();
 				client.messageAll(message);
 			} else if (input.toLowerCase().startsWith("message"))
 			{
 				int i = input.indexOf(':');
 				String dest = input.substring(7, i).trim();
-				String message = input.substring(i);
+				String message = input.substring(i + 1).trim();
 				client.messageOne(dest, message);
 			} else if (input.toLowerCase().startsWith("list"))
 			{
@@ -105,8 +104,8 @@ public class CommandLineClient implements ChatListener
 			}
 		} else if (message instanceof LoginRequestMessage)
 		{
-			hasName = false;
-			System.out.println("System: Enter name: ");
+//			hasName = false;
+//			System.out.println("System: Enter name: ");
 		} else
 		{
 			System.out.println("Received: " + message.toString());

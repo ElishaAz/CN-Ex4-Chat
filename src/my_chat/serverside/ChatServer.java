@@ -9,7 +9,9 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 /**
@@ -21,15 +23,11 @@ public class ChatServer implements Runnable
 {
 	public static final int port = 59101;
 
-	private static final String nameExistsMessage = "That name already exists. Try a different one",
-			nameInvalidMessage = "That name is invalid. Try a different one",
-			loginAcceptedMessage = "Login Accepted with source: ";
-
-	public static final String nameRegexPattern = "\\w";
+	public static final String nameRegexPattern = "\\w+";
 
 	private final Map<String, ObjectOutputStream> clients = new HashMap<>();
-
 	public final List<IMessage> allMessages = new LinkedList<>();
+	private ExecutorService pool;
 
 	private final int numberOfThreads;
 	private final ChatListener listener;
@@ -69,7 +67,7 @@ public class ChatServer implements Runnable
 			runnning = true;
 			listener.stat("Server is running...", false);
 
-			var pool = Executors.newFixedThreadPool(numberOfThreads);
+			pool = Executors.newFixedThreadPool(numberOfThreads);
 
 			try (var listener = new ServerSocket(port))
 			{
@@ -93,12 +91,19 @@ public class ChatServer implements Runnable
 	 */
 	public synchronized void stop()
 	{
-		runnning = false;
-
 		listener.stat("Server stopping ...", false);
 
 		closeAndClearClients();
 		allMessages.clear();
+		try
+		{
+			pool.awaitTermination(1000, TimeUnit.MILLISECONDS);
+		} catch (InterruptedException e)
+		{
+			e.printStackTrace();
+		}
+		runnning = false;
+
 		listener.stat("Server stopped", false);
 	}
 
@@ -165,8 +170,8 @@ public class ChatServer implements Runnable
 		{
 			try
 			{
-				out = new ObjectOutputStream(socket.getOutputStream());
-				in = new ObjectInputStream(socket.getInputStream());
+				out = new ObjectOutputStream(new BufferedOutputStream(socket.getOutputStream()));
+				in = new ObjectInputStream(new BufferedInputStream(socket.getInputStream()));
 
 				IMessage loginRequestMessage = new LoginRequestMessage();
 
@@ -179,53 +184,53 @@ public class ChatServer implements Runnable
 				boolean loginAccepted = false;
 				while (!loginAccepted)
 				{
-					if (in.available() > 0)
+					Object obj = in.readObject();
+					if (obj instanceof IClientMessage)
 					{
-						Object obj = in.readObject();
-						if (obj instanceof IClientMessage)
+						IClientMessage message = (IClientMessage) obj;
+						messageReceived(message);
+						if (message instanceof LoginMessage)
 						{
-							IClientMessage message = (IClientMessage) obj;
-							if (message instanceof LoginMessage)
-							{
-								loginAccepted = clientConnected(message, out);
+							loginAccepted = clientConnected(message, out);
 
-								if (loginAccepted)
-								{
-									name = message.getSource();
-								}
+							if (loginAccepted)
+							{
+								name = message.getSource();
 							}
 						} else
 						{
-							listener.stat("A non-client message was received. Message dropped.", true);
+							loginRequestMessage = new LoginRequestMessage();
+
+							out.writeObject(loginRequestMessage);
+							out.flush();
+
+							listener.messageSent(loginRequestMessage);
 						}
 					} else
 					{
-						out.writeObject(new LoginRequestMessage());
-						out.flush();
+						listener.stat("A non-client message was received. Message dropped.", true);
 					}
+
 				}
 
 				// receive messages from the client.
 				boolean logout = false;
 				while (!logout)
 				{
-					if (in.available() > 0)
+					Object obj = in.readObject();
+					if (obj instanceof IClientMessage)
 					{
-						Object obj = in.readObject();
-						if (obj instanceof IClientMessage)
+						IClientMessage message = (IClientMessage) obj;
+						if (message instanceof LoginMessage)
 						{
-							IClientMessage message = (IClientMessage) obj;
-							if (message instanceof LoginMessage)
-							{
-								logout = clientLogout(message);
-							} else
-							{
-								messageReceived(message);
-							}
+							logout = clientLogout(message);
 						} else
 						{
-							listener.stat("A non-client message was received. Message dropped.", true);
+							messageReceived(message);
 						}
+					} else
+					{
+						listener.stat("A non-client message was received. Message dropped.", true);
 					}
 				}
 
@@ -268,14 +273,10 @@ public class ChatServer implements Runnable
 	 */
 	private synchronized boolean clientConnected(IClientMessage loginMessage, ObjectOutputStream out)
 	{
-		messageReceived(loginMessage);
-
 		boolean accepted, nameExists;
-		String message;
 
 		if (loginMessage.getSource() == null || clients.containsKey(loginMessage.getSource()))
 		{
-			message = nameExistsMessage;
 			accepted = false;
 			nameExists = true;
 		} else
@@ -283,12 +284,10 @@ public class ChatServer implements Runnable
 			if (isValidName(loginMessage.getSource()))
 			{
 				clients.put(loginMessage.getSource(), out);
-				message = loginAcceptedMessage + loginMessage.getSource();
 				accepted = true;
 				nameExists = false;
 			} else
 			{
-				message = nameInvalidMessage;
 				accepted = false;
 				nameExists = false;
 			}
@@ -329,14 +328,6 @@ public class ChatServer implements Runnable
 	 */
 	private void messageReceived(IClientMessage message)
 	{
-		if (message.getDest() != null)
-		{
-			if (!clients.containsKey(message.getDest()))
-			{
-				sendMessage(new InvalidUserMessage(message.getSource(), message.getDest()));
-				return;
-			}
-		}
 
 		allMessages.add(message);
 		listener.messageReceived(message);
@@ -346,6 +337,14 @@ public class ChatServer implements Runnable
 			sendMessage(new NameListMessage(message.getSource(), new HashSet<>(clients.keySet())));
 		} else if (message instanceof IServerMessage)
 		{
+			if (message.getDest() != null)
+			{
+				if (!clients.containsKey(message.getDest()))
+				{
+					sendMessage(new InvalidUserMessage(message.getSource(), message.getDest()));
+					return;
+				}
+			}
 			sendMessage(message);
 		}
 	}

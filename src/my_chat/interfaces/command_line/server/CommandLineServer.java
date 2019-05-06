@@ -30,7 +30,7 @@ public class CommandLineServer implements ChatListener
 			} else if (input.toLowerCase().startsWith("broadcast"))
 			{
 				int i = input.indexOf(':');
-				String message = input.substring(i);
+				String message = input.substring(i + 1).trim();
 				server.broadcast(message);
 			}
 		}

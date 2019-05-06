@@ -8,6 +8,7 @@ import my_chat.serverside.ChatServer;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.concurrent.CountDownLatch;
 import java.util.regex.Pattern;
 
 /**
@@ -40,8 +41,11 @@ public class ChatClient implements Runnable
 	 */
 	public void updateName(String name)
 	{
-		this.name = name;
-		nameUpdated = true;
+		synchronized (nameUpdateLock)
+		{
+			this.name = name;
+			nameUpdateLock.notifyAll();
+		}
 	}
 
 	/**
@@ -52,7 +56,7 @@ public class ChatClient implements Runnable
 		return Pattern.matches(ChatServer.nameRegexPattern, name);
 	}
 
-	private boolean nameUpdated = true;
+	private Object nameUpdateLock = new Object();
 
 	private boolean running = false;
 	private boolean loggedIn = false;
@@ -87,55 +91,50 @@ public class ChatClient implements Runnable
 
 				listener.stat("Client started", false);
 
+				if (name != null && !name.trim().equals(""))
+					sendMessage(new LoginMessage(name, true));
+
 				// log in
 				while (!loggedIn)
 				{
-					if (in.available() > 0)
+					Object obj = in.readObject();
+					if (obj instanceof IServerMessage)
 					{
-						Object obj = in.readObject();
-						if (obj instanceof IServerMessage)
-						{
-							IServerMessage sm = (IServerMessage) obj;
-							messageReceived(sm);
+						IServerMessage sm = (IServerMessage) obj;
+						messageReceived(sm);
 
-							if (sm instanceof LoginResponseMessage)
+						if (sm instanceof LoginResponseMessage)
+						{
+							LoginResponseMessage am = (LoginResponseMessage) sm;
+							if (am.accepted)
 							{
-								LoginResponseMessage am = (LoginResponseMessage) sm;
-								if (am.accepted)
-								{
-									loggedIn = true;
-									continue;
-								}
+								loggedIn = true;
 							}
-
-
-						} else
+						} else if (sm instanceof LoginRequestMessage)
 						{
-							listener.stat("A non-server message was received. Message dropped.", true);
+							synchronized (nameUpdateLock)
+							{
+								nameUpdateLock.wait();
+								sendMessage(new LoginMessage(name, true));
+							}
 						}
-					}
-					if (nameUpdated && name != null && !name.trim().equals("")) // if the name was updated,
-					// try sighing in again
+					} else
 					{
-						sendMessage(new LoginMessage(name, true));
-						nameUpdated = false;
+						listener.stat("A non-server message was received. Message dropped.", true);
 					}
 				}
 
 				// send / receive messages
 				while (running)
 				{
-					if (in.available() > 0)
+					Object obj = in.readObject();
+					if (obj instanceof IServerMessage)
 					{
-						Object obj = in.readObject();
-						if (obj instanceof IServerMessage)
-						{
-							IServerMessage sm = (IServerMessage) obj;
-							messageReceived(sm);
-						} else
-						{
-							listener.stat("A non-server message was received. Message dropped.", true);
-						}
+						IServerMessage sm = (IServerMessage) obj;
+						messageReceived(sm);
+					} else
+					{
+						listener.stat("A non-server message was received. Message dropped.", true);
 					}
 				}
 
@@ -145,6 +144,9 @@ public class ChatClient implements Runnable
 			} catch (ClassNotFoundException e)
 			{
 				listener.stat("Problem reading from stream. Exiting.", true);
+			} catch (InterruptedException e)
+			{
+				e.printStackTrace();
 			} finally
 			{
 				stop();
