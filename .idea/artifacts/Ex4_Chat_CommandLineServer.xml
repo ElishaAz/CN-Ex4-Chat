@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" build-on-make="true" name="Ex4-Chat:CommandLineServer">
+    <output-path>$PROJECT_DIR$/out/artifacts/Ex4_Chat_CommandLineServer</output-path>
+    <root id="archive" name="Ex4-Chat.jar">
+      <element id="module-output" name="Ex4-Chat" />
+    </root>
+  </artifact>
+</component>
