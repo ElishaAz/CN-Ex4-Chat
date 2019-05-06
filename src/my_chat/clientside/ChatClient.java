@@ -55,6 +55,7 @@ public class ChatClient implements Runnable
 	private boolean nameUpdated = true;
 
 	private boolean running = false;
+	private boolean loggedIn = false;
 	private final Object clientRunningLock = new Object();
 
 	/**
@@ -84,7 +85,6 @@ public class ChatClient implements Runnable
 				running = true;
 
 				// log in
-				boolean loggedIn = false;
 				while (!loggedIn)
 				{
 					if (in.available())
@@ -105,7 +105,8 @@ public class ChatClient implements Runnable
 								}
 							}
 
-							if (nameUpdated && name != null && !name.trim().equals("")) // if the name was updated, try sighing in again
+							if (nameUpdated && name != null && !name.trim().equals("")) // if the name was updated,
+							// try sighing in again
 							{
 								sendMessage(new LoginMessage(name, true));
 								nameUpdated = false;
@@ -116,7 +117,6 @@ public class ChatClient implements Runnable
 						}
 					}
 				}
-
 
 				// send / receive messages
 				while (running)
@@ -153,6 +153,12 @@ public class ChatClient implements Runnable
 	 */
 	public synchronized void stop()
 	{
+		if (loggedIn)
+		{
+			sendMessage(new LoginMessage(name, false));
+			loggedIn = false;
+		}
+
 		if (out != null)
 			try
 			{
@@ -161,6 +167,7 @@ public class ChatClient implements Runnable
 			{
 				e.printStackTrace();
 			}
+		running = false;
 	}
 
 	/**
@@ -203,7 +210,7 @@ public class ChatClient implements Runnable
 	/**
 	 * Deals with outgoing messages.
 	 */
-	private synchronized void sendMessage(IClientMessage message)
+	private void sendMessage(IClientMessage message)
 	{
 		if (!running)
 		{
@@ -224,7 +231,7 @@ public class ChatClient implements Runnable
 	/**
 	 * Deals with incoming messages.
 	 */
-	private synchronized void messageReceived(IServerMessage message)
+	private void messageReceived(IServerMessage message)
 	{
 		listener.messageReceived(message);
 	}
