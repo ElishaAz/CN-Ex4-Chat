@@ -62,7 +62,7 @@ public class ChatHandler implements Runnable
 						LoginMessage loginMessage = (LoginMessage) message;
 						if (loginMessage.login)
 						{
-							LoginResponseMessage loginResponseMessage = server.login(loginMessage.name);
+							LoginResponseMessage loginResponseMessage = server.login(loginMessage.name, out);
 							server.sendOn(loginResponseMessage, out);
 							if (loginResponseMessage.accepted)
 							{
@@ -102,6 +102,10 @@ public class ChatHandler implements Runnable
 		{
 			server.listener.stat("Problem reading from the stream. Thread dropped. " +
 					"Name: '" + (name == null ? "null" : name) + '\'', true);
+		} finally
+		{
+			if (loggedIn)
+				server.disconnected(name);
 		}
 	}
 }
