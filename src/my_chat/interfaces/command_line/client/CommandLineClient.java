@@ -62,12 +62,12 @@ public class CommandLineClient implements ChatListener
 		while (client.isRunning())
 		{
 			String input = scanner.nextLine().trim();
-			if (input.toLowerCase().startsWith("message all"))
+			if (input.toLowerCase().startsWith("send all"))
 			{
 				int i = input.indexOf(':');
 				String message = input.substring(i + 1).trim();
 				client.messageAll(message);
-			} else if (input.toLowerCase().startsWith("message"))
+			} else if (input.toLowerCase().startsWith("send"))
 			{
 				int i = input.indexOf(':');
 				String dest = input.substring(7, i).trim();

@@ -120,7 +120,7 @@ public class ChatClient implements Runnable
 						}
 					} else
 					{
-						listener.stat("A non-server message was received. Message dropped.", true);
+						listener.stat("A non-server send was received. Message dropped.", true);
 					}
 				}
 
@@ -134,7 +134,7 @@ public class ChatClient implements Runnable
 						messageReceived(sm);
 					} else
 					{
-						listener.stat("A non-server message was received. Message dropped.", true);
+						listener.stat("A non-server send was received. Message dropped.", true);
 					}
 				}
 
@@ -187,9 +187,9 @@ public class ChatClient implements Runnable
 	}
 
 	/**
-	 * Send a message to all the other users. You can only call this after the client has started.
+	 * Send a send to all the other users. You can only call this after the client has started.
 	 *
-	 * @param message the message to send.
+	 * @param message the send to send.
 	 */
 	public synchronized void messageAll(String message)
 	{
@@ -197,10 +197,10 @@ public class ChatClient implements Runnable
 	}
 
 	/**
-	 * Send a private message to one user. You can only call this after the client has started.
+	 * Send a private send to one user. You can only call this after the client has started.
 	 *
-	 * @param dest    the user to send this message to.
-	 * @param message the message to send.
+	 * @param dest    the user to send this send to.
+	 * @param message the send to send.
 	 */
 	public synchronized void messageOne(String dest, String message)
 	{

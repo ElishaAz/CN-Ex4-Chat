@@ -117,9 +117,9 @@ public class ChatServer implements Runnable
 
 
 	/**
-	 * Send a message from the server to all the clients.
+	 * Send a send from the server to all the clients.
 	 *
-	 * @param message the message to send.
+	 * @param message the send to send.
 	 */
 	public void broadcast(String message)
 	{
@@ -208,7 +208,7 @@ public class ChatServer implements Runnable
 						}
 					} else
 					{
-						listener.stat("A non-client message was received. Message dropped.", true);
+						listener.stat("A non-client send was received. Message dropped.", true);
 					}
 
 				}
@@ -230,7 +230,7 @@ public class ChatServer implements Runnable
 						}
 					} else
 					{
-						listener.stat("A non-client message was received. Message dropped.", true);
+						listener.stat("A non-client send was received. Message dropped.", true);
 					}
 				}
 
@@ -267,7 +267,7 @@ public class ChatServer implements Runnable
 	/**
 	 * Deals with the client's request to log in.
 	 *
-	 * @param loginMessage the client's message asking to log in.
+	 * @param loginMessage the client's send asking to log in.
 	 * @param out          the output stream to the client.
 	 * @return true if the login is valid and false otherwise.
 	 */
@@ -324,7 +324,7 @@ public class ChatServer implements Runnable
 	/**
 	 * Deals with incoming messages.
 	 *
-	 * @param message the incoming message.
+	 * @param message the incoming send.
 	 */
 	private void messageReceived(IClientMessage message)
 	{
@@ -350,10 +350,10 @@ public class ChatServer implements Runnable
 	}
 
 	/**
-	 * Sends a message to whoever needs to receive it.
+	 * Sends a send to whoever needs to receive it.
 	 *
-	 * @param message the message to send.
-	 * @return true if the message was sent, and false otherwise (i.e. if there was an error).
+	 * @param message the send to send.
+	 * @return true if the send was sent, and false otherwise (i.e. if there was an error).
 	 */
 	private synchronized boolean sendMessage(IMessage message)
 	{
@@ -381,11 +381,11 @@ public class ChatServer implements Runnable
 	}
 
 	/**
-	 * Send a message to a specific client.
+	 * Send a send to a specific client.
 	 *
-	 * @param message the message to send.
+	 * @param message the send to send.
 	 * @param dest    the source of the destination client.
-	 * @return true if the message was sent, and false otherwise (i.e. if there was an error).
+	 * @return true if the send was sent, and false otherwise (i.e. if there was an error).
 	 */
 	private boolean sendMessageTo(IMessage message, String dest)
 	{
@@ -399,7 +399,7 @@ public class ChatServer implements Runnable
 
 			} catch (IOException e)
 			{
-				listener.stat("problem sending the message + " + message + " to " + message.getDest(), true);
+				listener.stat("problem sending the send + " + message + " to " + message.getDest(), true);
 				return false;
 			}
 			return true;
@@ -410,7 +410,7 @@ public class ChatServer implements Runnable
 	/**
 	 * Deals with a client Logging out.
 	 *
-	 * @param logoutMessage The client's message asking to log out.
+	 * @param logoutMessage The client's send asking to log out.
 	 * @return false iff there was an error and the clietn was not disconnected.
 	 */
 	private synchronized boolean clientLogout(IClientMessage logoutMessage)
